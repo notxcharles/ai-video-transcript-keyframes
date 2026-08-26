@@ -1,0 +1,28 @@
+# SECRETS - never commit. Cookie files are live logins to your accounts.
+cookies/*.txt
+!cookies/README.txt
+.env
+*.key
+
+# output
+library/
+*.mp4
+*.mkv
+*.webm
+*.m4a
+*.wav
+
+# runtime
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.log
+
+# editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini

@@ -1,0 +1,9 @@
+# Downloads the video from almost any site
+yt-dlp>=2024.1.0
+
+# Draws the labelled keyframe contact sheets
+Pillow>=10.0.0
+
+# Speech to text, used only when a video has no captions.
+# Remove this line if you only ever use videos that already have subtitles.
+faster-whisper>=1.0.0

@@ -159,16 +159,17 @@ Code or attach the sheets in the chat window, and you're done.
 
 ## Options
 
-| Option | What it does |
-|---|---|
-| `--name my-slug` | Name the output folder yourself instead of using the video title |
-| `--frames 60` | How many keyframes to pull (default `36`). More frames = more visual detail |
-| `--model small` | Whisper model for videos with no captions: `tiny` · `base` · `small` · `medium` |
-| `--quality 1080` | Max video height to download (default `720`). Raise it for UI detail, lower it for speed |
-| `--keep-video` | Keep the downloaded video file instead of deleting it |
-| `--no-transcribe` | Skip transcription entirely — visuals only, much faster |
-| `--cookies-file path` | Use an exported `cookies.txt` for login-walled videos |
-| `--cookies chrome` | Pull cookies straight from your browser (often blocked on Windows — see below) |
+| Option                | What it does                                                                                                                                                                    |
+|-----------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `--name my-slug`      | Name the output folder yourself instead of using the video title                                                                                                                |
+| `--frames 60`         | How many keyframes to pull (default `36`). More frames = more visual detail                                                                                                     |
+| `--model small`       | Whisper model for videos with no captions: `tiny` · `base` · `small` · `medium`                                                                                                 |
+| `--quality 1080`      | Max video height to download (default `720`). Raise it for UI detail, lower it for speed                                                                                        |
+| `--keep-video`        | Keep the downloaded video file instead of deleting it                                                                                                                           |
+| `--no-transcribe`     | Skip transcription entirely — visuals only, much faster                                                                                                                         |
+| `--cookies-file path` | Use an exported `cookies.txt` for login-walled videos                                                                                                                           |
+| `--cookies chrome`    | Pull cookies straight from your browser (often blocked on Windows — see below)                                                                                                  |
+| `--language fr`       | The language the video is spoken in. Only captions in that language are used; if the platform has none, Whisper transcribes in that language. [Language codes](#language-codes) |
 
 Examples:
 
@@ -199,6 +200,15 @@ an exported cookie file instead:
 
 The script picks the right file for the URL automatically. You never pass a flag.
 
+If a download with a cookies.txt file fails, the script automatically retries **without** cookies. Sites
+like YouTube rotate login cookies while the browser tab stays open, so an exported file can go
+stale quickly (YouTube then says "The page needs to be reloaded"). 
+
+If the retry works, you'll see `worked without cookies - your cookies file is probably stale`. 
+You can usually just delete that file, because most public videos don't need cookies at all. 
+If you do need them, export from a private/incognito window and close it straight afterwards, 
+so the site doesn't rotate them.
+
 > ⚠️ **A `cookies.txt` file is a live login to your account.** Anyone who gets it is logged in
 > as you. The `cookies/` folder is already in `.gitignore` — keep it that way, and never share
 > those files.
@@ -227,6 +237,10 @@ you'll still get all the keyframes.
 
 The site wants a logged-in session. Export a `cookies.txt` and drop it in `cookies/` — see the
 section above.
+
+If you see *"The page needs to be reloaded"*, it's the opposite problem: your cookies file is stale.
+The script already retries without cookies, and if that retry fails too, delete the file or
+re-export it from a private window.
 </details>
 
 <details>
@@ -253,6 +267,113 @@ cuts the command in half.
 
 ---
 
+## Language Codes
+
+| Code | Language         |
+|---|------------------|
+| af | Afrikaans        |
+| am | Amharic          |
+| ar | Arabic           |
+| as | Assamese         |
+| az | Azerbaijani      |
+| ba | Bashkir          |
+| be | Belarusian       |
+| bg | Bulgarian        |
+| bn | Bengali          |
+| bo | Tibetan          |
+| br | Breton           |
+| bs | Bosnian          |
+| ca | Catalan          |
+| cs | Czech            |
+| cy | Welsh            |
+| da | Danish           |
+| de | German           |
+| el | Greek            |
+| en | English          |
+| es | Spanish          |
+| et | Estonian         |
+| eu | Basque           |
+| fa | Persian          |
+| fi | Finnish          |
+| fo | Faroese          |
+| fr | French           |
+| gl | Galician         |
+| gu | Gujarati         |
+| ha | Hausa            |
+| haw | Hawaiian         |
+| he | Hebrew           |
+| hi | Hindi            |
+| hr | Croatian         |
+| ht | Haitian Creole   |
+| hu | Hungarian        |
+| hy | Armenian         |
+| id | Indonesian       |
+| is | Icelandic        |
+| it | Italian          |
+| ja | Japanese         |
+| jw | Javanese         |
+| ka | Georgian         |
+| kk | Kazakh           |
+| km | Khmer            |
+| kn | Kannada          |
+| ko | Korean           |
+| la | Latin            |
+| lb | Luxembourgish    |
+| ln | Lingala          |
+| lo | Lao              |
+| lt | Lithuanian       |
+| lv | Latvian          |
+| mg | Malagasy         |
+| mi | Maori            |
+| mk | Macedonian       |
+| ml | Malayalam        |
+| mn | Mongolian        |
+| mr | Marathi          |
+| ms | Malay            |
+| mt | Maltese          |
+| my | Myanmar (Burmese) |
+| ne | Nepali           |
+| nl | Dutch            |
+| nn | Nynorsk          |
+| no | Norwegian        |
+| oc | Occitan          |
+| pa | Punjabi          |
+| pl | Polish           |
+| ps | Pashto           |
+| pt | Portuguese       |
+| ro | Romanian         |
+| ru | Russian          |
+| sa | Sanskrit         |
+| sd | Sindhi           |
+| si | Sinhala          |
+| sk | Slovak           |
+| sl | Slovenian        |
+| sn | Shona            |
+| so | Somali           |
+| sq | Albanian         |
+| sr | Serbian          |
+| su | Sundanese        |
+| sv | Swedish          |
+| sw | Swahili          |
+| ta | Tamil            |
+| te | Telugu           |
+| tg | Tajik            |
+| th | Thai             |
+| tk | Turkmen          |
+| tl | Tagalog          |
+| tr | Turkish          |
+| tt | Tatar            |
+| uk | Ukrainian        |
+| ur | Urdu             |
+| uz | Uzbek            |
+| vi | Vietnamese       |
+| yi | Yiddish          |
+| yo | Yoruba           |
+| zh | Chinese          |
+| yue | Cantonese       |
+
+---
+
 ## How it works
 
 1. **`yt-dlp`** downloads the video and any subtitle track the platform already has.
@@ -273,6 +394,14 @@ change how frames are picked or how the sheets look, it's all in there.
 
 Issues and pull requests are welcome — especially more site support, better frame selection
 (scene-change detection instead of even sampling), and speed improvements.
+
+## Acknowledgements
+
+This project relies on **[yt-dlp](https://github.com/yt-dlp/yt-dlp)** for downloading videos,
+metadata and subtitle tracks from YouTube, Facebook, TikTok and the many other sites it supports.
+`vref.py` runs it as a separate program, and all site support comes from yt-dlp. If a site stops
+working, updating yt-dlp (`pip install -U yt-dlp`) is usually the fix. yt-dlp is released under
+[the Unlicense](https://github.com/yt-dlp/yt-dlp/blob/master/LICENSE).
 
 ## License
 

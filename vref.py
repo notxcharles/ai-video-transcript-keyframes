@@ -40,6 +40,14 @@ SHEET_ROWS = 3
 FRAME_WIDTH = 1024
 SHEET_TILE_WIDTH = 640
 
+# whisper language code -> extra tags platforms use for the same language
+SUB_LANG_ALIASES = {
+    "he": ["iw"],
+    "jw": ["jv"],
+    "no": ["nb", "nn"],
+    "yue": ["zh-HK"],
+}
+
 
 # ---------------------------------------------------------------- helpers
 
@@ -98,7 +106,18 @@ def find_cookie_file(url, explicit=None):
     return default if default.exists() else None
 
 
-def download(url, workdir, cookies=None, cookie_file=None, quality=720):
+def lang_tags(language):
+    return [language] + SUB_LANG_ALIASES.get(language, [])
+
+
+def sub_lang_patterns(language):
+    """--sub-langs value for yt-dlp; each entry is a regex matched against the whole tag."""
+    if not language:
+        return "en.*,ur.*,hi.*"
+    return ",".join(f"{re.escape(t)}(-.*)?" for t in lang_tags(language))
+
+
+def download(url, workdir, cookies=None, cookie_file=None, quality=720, language=None):
     workdir.mkdir(parents=True, exist_ok=True)
     fmt = f"bv*[height<={quality}]+ba/b[height<={quality}]/bv*+ba/b"
     cmd = [
@@ -107,40 +126,58 @@ def download(url, workdir, cookies=None, cookie_file=None, quality=720):
         "--merge-output-format", "mp4",
         "--write-info-json",
         "--write-subs", "--write-auto-subs",
-        "--sub-langs", "en.*,ur.*,hi.*",
+        "--sub-langs", sub_lang_patterns(language),
         "--convert-subs", "srt",
         "--no-playlist",
         "--retries", "5",
+        "--ignore-errors",  # a failed subtitle fetch (e.g. HTTP 429) shouldn't kill the video
         "--no-warnings",
         "-o", str(workdir / "source.%(ext)s"),
         url,
     ]
+    base_cmd = list(cmd)
     if cookies:
         cmd += ["--cookies-from-browser", cookies]
     elif cookie_file:
         log(f"using cookies file: {cookie_file.name}")
         cmd += ["--cookies", str(cookie_file)]
 
+    def got_video():
+        return sorted(
+            [p for p in workdir.glob("source.*")
+             if p.suffix.lower() in {".mp4", ".mkv", ".webm", ".mov"}],
+            key=lambda p: p.stat().st_size, reverse=True,
+        )
+
     log("downloading video...")
     res = run(cmd)
-    if res.returncode != 0:
+    if res.returncode != 0 and not got_video() and (cookies or cookie_file):
+        # stale/rotated cookies (e.g. YouTube's "The page needs to be reloaded")
+        # can break videos that would download fine anonymously
+        log("download with cookies failed, retrying without cookies...")
+        for p in workdir.glob("source.*"):
+            p.unlink(missing_ok=True)
+        res = run(base_cmd)
+        if got_video():
+            log("worked without cookies - your cookies file is probably stale")
+    videos = got_video()
+    if res.returncode != 0 and videos:
+        log("some extras (e.g. platform subtitles) failed to download - continuing")
+    if not videos:
         tail = (res.stderr or res.stdout or "").strip().splitlines()[-12:]
+        host = re.sub(r"^www\.", "", (re.search(r"https?://([^/]+)", url) or
+                                      re.match(r"()", url)).group(1))
+        site = host.split(".")[-2] if host.count(".") else "default"
         raise SystemExit(
             "yt-dlp failed:\n  " + "\n  ".join(tail) + "\n\n"
             "If the site is asking you to sign in / prove you are not a bot:\n"
-            "  export your own cookies once with the browser extension\n"
-            "  'Get cookies.txt LOCALLY', save as Netscape format to\n"
-            f"  {COOKIE_DIR / 'facebook.txt'}  (or youtube.txt / default.txt)\n"
-            "  then run this command again."
+            "  export your own cookies with the browser extension\n"
+            "  'Get cookies.txt LOCALLY' from a private/incognito window\n"
+            "  (then close that window so the site doesn't rotate them),\n"
+            f"  save as Netscape format to {COOKIE_DIR / (site + '.txt')}\n"
+            "  and run this command again. A stale cookies file can also\n"
+            "  cause this - try deleting it."
         )
-
-    videos = sorted(
-        [p for p in workdir.glob("source.*")
-         if p.suffix.lower() in {".mp4", ".mkv", ".webm", ".mov"}],
-        key=lambda p: p.stat().st_size, reverse=True,
-    )
-    if not videos:
-        raise SystemExit("Download finished but no video file was produced.")
     return videos[0]
 
 
@@ -217,20 +254,29 @@ def parse_srt(path):
     return cleaned
 
 
-def subs_from_download(workdir):
-    subs = sorted(workdir.glob("source*.srt"))
-    if not subs:
+def subs_from_download(workdir, language=None):
+    tagged = []
+    for p in sorted(workdir.glob("source*.srt")):
+        m = re.search(r"source\.([\w-]+)\.srt", p.name)
+        tagged.append((p, m.group(1) if m else ""))
+    if language:
+        # only accept captions in the requested language
+        wanted = lang_tags(language)
+        tagged = [(p, tag) for p, tag in tagged
+                  if tag in wanted or tag.split("-")[0] in wanted]
+    else:
+        # prefer english, else whatever exists
+        tagged.sort(key=lambda pt: not pt[1].startswith("en"))
+    if not tagged:
         return None, None
-    # prefer a manual (non-auto) english track, else whatever exists
-    preferred = next((p for p in subs if ".en" in p.name and "auto" not in p.name), subs[0])
+    preferred, tag = tagged[0]
     segs = parse_srt(preferred)
     if not segs:
         return None, None
-    lang = re.search(r"source\.([\w-]+)\.srt", preferred.name)
-    return segs, f"platform captions ({lang.group(1) if lang else 'unknown'})"
+    return segs, f"platform captions ({tag or 'unknown'})"
 
 
-def whisper_transcribe(video, workdir, model_size="base"):
+def whisper_transcribe(video, workdir, model_size="base", language=None):
     try:
         from faster_whisper import WhisperModel
     except ImportError:
@@ -247,11 +293,20 @@ def whisper_transcribe(video, workdir, model_size="base"):
 
     log(f"transcribing with faster-whisper ({model_size})... this can take a while")
     model = WhisperModel(model_size, device="cpu", compute_type="int8")
-    segments, info = model.transcribe(str(wav), beam_size=5, vad_filter=True)
+
+    if ((language is not None) and (language not in model.supported_languages)):
+        raise SystemExit(
+            f"Language \"{language}\" isn't supported by model \"{model_size}\". "
+            f"Supported: {', '.join(model.supported_languages)}"
+        )
+
+    segments, info = model.transcribe(str(wav), beam_size=5, vad_filter=True, language=language)
+
     segs = [{"start": s.start, "end": s.end, "text": s.text.strip()}
             for s in segments if s.text.strip()]
     wav.unlink(missing_ok=True)
-    return segs, f"faster-whisper {model_size} (detected language: {info.language})"
+    how = "set" if language else "detected"
+    return segs, f"faster-whisper {model_size} ({how} language: {info.language})"
 
 
 # ---------------------------------------------------------------- frames
@@ -474,7 +529,19 @@ def main():
     ap.add_argument("--quality", type=int, default=720, help="max video height (default 720)")
     ap.add_argument("--keep-video", action="store_true", help="keep source.mp4")
     ap.add_argument("--no-transcribe", action="store_true", help="skip whisper fallback")
+    ap.add_argument("--language", type=str.lower, default=None,
+                    help = "language the video is spoken in: only captions in this language are used, and "
+                           "faster-whisper transcribes in it if there are none; see README.md for language codes "
+                           "(default: english captions, else automatically detect the language)")
     args = ap.parse_args()
+
+    if args.language:
+        try:
+            from faster_whisper.tokenizer import _LANGUAGE_CODES
+        except ImportError:
+            _LANGUAGE_CODES = None  # can't validate & whisper won't run anyway
+        if _LANGUAGE_CODES and args.language not in _LANGUAGE_CODES:
+            ap.error(f"unknown --language {args.language!r}; see README.md for language codes")
 
     for tool in ("ffmpeg", "ffprobe"):
         if not shutil.which(tool):
@@ -498,7 +565,8 @@ def main():
     else:
         cookie_file = find_cookie_file(args.url, args.cookies_file)
         video = download(args.url, tmp, cookies=args.cookies,
-                         cookie_file=cookie_file, quality=args.quality)
+                         cookie_file=cookie_file, quality=args.quality,
+                         language=args.language)
         meta = load_meta(tmp, args.url)
     duration = meta.get("duration") or probe_duration(video)
     meta["duration"] = duration
@@ -510,11 +578,13 @@ def main():
         shutil.rmtree(outdir, ignore_errors=True)
     outdir.mkdir(parents=True, exist_ok=True)
 
-    segs, source = subs_from_download(tmp)
+    segs, source = subs_from_download(tmp, args.language)
     if segs:
         log(f"using {source} ({len(segs)} segments)")
-    elif not args.no_transcribe:
-        segs, source = whisper_transcribe(video, tmp, args.model)
+    elif args.language:
+        log(f"no '{args.language}' captions on the platform")
+    if not segs and not args.no_transcribe:
+        segs, source = whisper_transcribe(video, tmp, args.model, args.language)
     if not segs:
         segs, source = [], None
 

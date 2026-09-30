@@ -12,6 +12,7 @@ and the model is working from real reference material instead of guessing.
 [![Python](https://img.shields.io/badge/Python-3.9%2B-3776AB?logo=python&logoColor=white)](https://python.org)
 [![Platform](https://img.shields.io/badge/Windows%20%C2%B7%20macOS%20%C2%B7%20Linux-555)](#requirements)
 [![Developed by Tanzeel](https://img.shields.io/badge/Developed%20by-Tanzeel-6C3EF5)](https://github.com/tanzeeldevAi)
+[![Forked by notxcharles](https://img.shields.io/badge/Forked%20%26%20modified%20by-notxcharles-0A7EA4)](https://github.com/notxcharles)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](#contributing)
 
@@ -100,7 +101,7 @@ It takes about **5 minutes**.
 ### Step 1 — Download
 
 ```bash
-git clone https://github.com/tanzeeldevAi/ai-video-transcript-keyframes.git
+git clone https://github.com/notxcharles/ai-video-transcript-keyframes.git
 ```
 
 No git? Click the green **Code** button above → **Download ZIP** → unzip it somewhere like
@@ -411,7 +412,9 @@ working, updating yt-dlp (`pip install -U yt-dlp`) is usually the fix. yt-dlp is
 
 <div align="center">
 
-**Built by [@tanzeeldevAi](https://github.com/tanzeeldevAi)**
+**Originally built by [@tanzeeldevAi](https://github.com/tanzeeldevAi) · Forked and modified by [@notxcharles](https://github.com/notxcharles)**
+
+This is a fork of [tanzeeldevAi/ai-video-transcript-keyframes](https://github.com/tanzeeldevAi/ai-video-transcript-keyframes).
 
 *video transcript · youtube transcript extractor · keyframe extraction · video to text · video summarizer
 AI video analysis · video context for LLM · Claude video · ChatGPT video · yt-dlp · faster-whisper · ffmpeg

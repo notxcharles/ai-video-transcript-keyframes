@@ -74,6 +74,7 @@ Video URL  ──►  download  ──►  transcript  ──┐
 | 🌍 **Works with most sites** | YouTube, Facebook, TikTok, Instagram, Vimeo, Twitter/X, direct MP4 links |
 | 📁 **Local files too** | Pass a path instead of a URL and it works the same way |
 | 🔒 **Login-walled videos** | Point it at an exported `cookies.txt` for private or age-gated content |
+| 📋 **Queue a batch** | List several videos in a text file and let them run one after another while you do something else |
 | 🧹 **Cleans up after itself** | The source video is deleted unless you ask to keep it |
 
 ---
@@ -160,17 +161,19 @@ Code or attach the sheets in the chat window, and you're done.
 
 ## Options
 
-| Option                | What it does                                                                                                                                                                    |
-|-----------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `--name my-slug`      | Name the output folder yourself instead of using the video title                                                                                                                |
-| `--frames 60`         | How many keyframes to pull (default `36`). More frames = more visual detail                                                                                                     |
-| `--model small`       | Whisper model for videos with no captions: `tiny` · `base` · `small` · `medium`                                                                                                 |
-| `--quality 1080`      | Max video height to download (default `720`). Raise it for UI detail, lower it for speed                                                                                        |
-| `--keep-video`        | Keep the downloaded video file instead of deleting it                                                                                                                           |
-| `--no-transcribe`     | Skip transcription entirely — visuals only, much faster                                                                                                                         |
-| `--cookies-file path` | Use an exported `cookies.txt` for login-walled videos                                                                                                                           |
-| `--cookies chrome`    | Pull cookies straight from your browser (often blocked on Windows — see below)                                                                                                  |
-| `--language fr`       | The language the video is spoken in. Only captions in that language are used; if the platform has none, Whisper transcribes in that language. [Language codes](#language-codes) |
+| Option                 | What it does                                                                                                                                                                    |
+|------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `--name my-slug`       | Name the output folder yourself instead of using the video title                                                                                                                |
+| `--frames 60`          | How many keyframes to pull (default `36`). More frames = more visual detail                                                                                                     |
+| `--model small`        | Whisper model for videos with no captions: `tiny` · `base` · `small` · `medium`                                                                                                 |
+| `--quality 1080`       | Max video height to download (default `720`). Raise it for UI detail, lower it for speed                                                                                        |
+| `--keep-video`         | Keep the downloaded video file instead of deleting it                                                                                                                           |
+| `--no-transcribe`      | Skip transcription entirely — visuals only, much faster                                                                                                                         |
+| `--cookies-file path`  | Use an exported `cookies.txt` for login-walled videos                                                                                                                           |
+| `--cookies chrome`     | Pull cookies straight from your browser (often blocked on Windows — see below)                                                                                                  |
+| `--language fr`        | The language the video is spoken in. Only captions in that language are used; if the platform has none, Whisper transcribes in that language. [Language codes](#language-codes) |
+| `--require-transcript` | Fail instead of carrying on when no transcript can be produced — useful for lectures                                                                                            |
+| `--queue queue.txt`    | Run a list of vref commands one after another — see [Queue](#queue)                                                                                                             |
 
 Examples:
 
@@ -178,12 +181,64 @@ Examples:
 # A design reference - lots of frames, skip the words
 python vref.py "https://www.tiktok.com/@user/video/123" --frames 60 --no-transcribe
 
-# A lecture - accurate words, few frames
-python vref.py "https://youtu.be/XXXXXXXXXXX" --frames 12 --model small
+# A lecture - accurate words, few frames, and fail if there are no words
+python vref.py "https://youtu.be/XXXXXXXXXXX" --frames 12 --model small --require-transcript
 
 # A local file already on your disk
 python vref.py "C:\Users\me\Videos\client-demo.mp4"
 ```
+
+---
+
+## Queue
+
+Got a stack of videos? Put one vref command per line in a text file, for example `queue.txt` in
+the project folder:
+
+```
+python vref.py "C:\Users\me\Lectures\Week 1.mp4" --model medium --language en --require-transcript
+
+python vref.py "C:\Users\me\Lectures\Week 2.mp4" --model medium --language en --require-transcript
+```
+
+then start it and walk away:
+
+```bash
+python vref.py --queue queue.txt
+```
+
+Each line is written exactly as you'd type it in the terminal, so you can test a command on its
+own first and then paste it in. The leading `python vref.py` is optional.
+
+When it's finished you get a summary:
+
+```
+[queue] finished: 5 done, 1 failed (commented out in queue.txt), 0 left
+```
+
+How it behaves:
+
+- **Checks first.** Before anything runs, every line is checked: options are spelled right,
+  local files exist, FFmpeg and `faster-whisper` are installed, and no two lines would write to
+  the same output folder. Any problems are listed and you choose whether to run the rest.
+- **Done lines disappear.** Each command is removed from the file once it succeeds, so you can
+  stop at any point (Ctrl+C) and run the queue again later to pick up where it left off.
+- **Failed lines are commented out** with the reason, and the queue moves on:
+  ```
+  # FAILED 2026-10-08 14:32 - video file not found: C:\Users\me\Lectures\Week 3.mp4
+  # python vref.py "C:\Users\me\Lectures\Week 3.mp4" --model medium
+  ```
+  Fix the line, remove the `# ` and run the queue again. The full output of every run is saved
+  in `library/_logs/`.
+- **Edit while it runs.** The file is re-read before each video, so you can add or reorder lines
+  at any time.
+- Blank lines and lines starting with `#` are ignored.
+- `queue.txt` is in `.gitignore`, so your list of files never gets committed.
+
+> **Tip:** the output folder is named after the video's file name (or title), and a new run
+> replaces an existing folder with the same name. If different courses use the same file
+> names — `Week 1.mp4` in two modules, say — give each line its own `--name`, like
+> `--name ml-week-1`.
 
 ---
 
@@ -231,6 +286,18 @@ FFmpeg isn't installed, or your terminal was open before you installed it. Do St
 The video had no captions and `faster-whisper` isn't installed. Run
 `pip install faster-whisper`. If the video genuinely has no speech, this is correct behaviour —
 you'll still get all the keyframes.
+
+If a transcript matters (lectures, talks), add `--require-transcript`. The run then stops with
+an error that says why, instead of quietly producing a folder with no words in it.
+</details>
+
+<details>
+<summary><b>A queue line was commented out as FAILED</b></summary>
+
+The comment above it says why, for example `video file not found` or an `unrecognized arguments`
+typo. For the full output, open the matching file in `library/_logs/` (named by time and output
+folder). Fix the command, remove the `# ` from the start of the line, delete the `# FAILED`
+comment, and run `python vref.py --queue queue.txt` again.
 </details>
 
 <details>
